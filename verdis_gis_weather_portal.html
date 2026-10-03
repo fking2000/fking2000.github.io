@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Free Republic of Verdis | Official GIS & Weather Portal</title>
+    
+    <!-- Site Favicon & Touch Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="https://commons.wikimedia.org/wiki/Special:FilePath/Coat_of_arms_of_Verdis.png?width=64">
+    <link rel="icon" type="image/png" sizes="16x16" href="https://commons.wikimedia.org/wiki/Special:FilePath/Coat_of_arms_of_Verdis.png?width=32">
+    <link rel="apple-touch-icon" sizes="180x180" href="https://commons.wikimedia.org/wiki/Special:FilePath/Coat_of_arms_of_Verdis.png?width=180">
+    <link rel="shortcut icon" href="https://commons.wikimedia.org/wiki/Special:FilePath/Coat_of_arms_of_Verdis.png?width=64">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        verdis: {
+                            green: '#10b981',
+                            darkgreen: '#065f46',
+                            blue: '#0284c7',
+                            darkblue: '#0369a1',
+                            card: 'rgba(30, 41, 59, 0.75)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS styles for UI animations and map controls -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Map container setup */
+        #map { background: #0b1120; z-index: 10; width: 100%; height: 100%; }
+        
+        /* Leaflet Dark Theme Adjustments */
+        .leaflet-control-zoom { border: none !important; box-shadow: 0 4px 14px rgba(0,0,0,0.6) !important; border-radius: 8px !important; overflow: hidden; }
+        .leaflet-control-zoom a { background: #1e293b !important; color: #10b981 !important; border-bottom: 1px solid #334155 !important; }
+        .leaflet-control-zoom a:hover { background: #334155 !important; color: #34d399 !important; }
+        .leaflet-control-zoom a.leaflet-disabled { background: #0f172a !important; color: #475569 !important; }
+        .leaflet-popup-content-wrapper { background: #1e293b; color: #f8fafc; border: 1px solid #334155; box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.6); border-radius: 0.75rem; }
+        .leaflet-popup-tip { background: #1e293b; }
+        
+        /* Beacon Pulse Animation for Center Marker */
+        .beacon-pulse { position: relative; width: 22px; height: 22px; }
+        .beacon-pulse::before { content: ''; position: absolute; top: -9px; left: -9px; width: 40px; height: 40px; border-radius: 50%; background: rgba(16, 185, 129, 0.45); animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+        .beacon-pulse::after { content: ''; position: absolute; top: 0; left: 0; width: 22px; height: 22px; background: #10b981; border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 0 14px rgba(16, 185, 129, 0.9); }
+        @keyframes pulse-ring { 0% { transform: scale(0.3); opacity: 0.9; } 80% { transform: scale(1.6); opacity: 0; } 100% { transform: scale(1.8); opacity: 0; } }
+        /* Tip Div Icon */
+        .tip-icon { background: #1e293b; border: 2px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #38bdf8; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+
+        /* Weather UI custom scroll & loaders */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .loader {
+            border: 4px solid rgba(16, 185, 129, 0.2);
+            border-top: 4px solid #10b981;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.82);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(51, 65, 85, 0.7);
+        }
+        
+        .weather-hero-gradient {
+            background: linear-gradient(135deg, #065f46 0%, #0369a1 100%);
+        }
+    </style>
+</head>
+<body class="h-dvh flex flex-col bg-slate-950 text-slate-100 overflow-hidden select-none">
+
+    <!-- Top Global Header -->
+    <header class="z-30 bg-slate-900 border-b border-slate-800 shrink-0 shadow-[0_4px_20px_rgba(0,0,0,0.6)] flex flex-col w-full relative">
+        <div class="flex flex-col md:flex-row items-center justify-between p-3 gap-3">
+            
+            <!-- Branding -->
+            <div class="flex items-center space-x-3 w-full md:w-auto justify-between md:justify-start">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 p-1 flex items-center justify-center shrink-0 shadow-inner">
+                        <img 
+                            src="https://commons.wikimedia.org/wiki/Special:FilePath/Coat_of_arms_of_Verdis.png?width=100" 
+                            alt="Verdis Coat of Arms" 
+                            class="w-full h-full object-contain"
+                            onerror="this.onerror=null; this.src='https://placehold.co/40x40/065f46/ffffff?text=VRD';"
+                        />
+                    </div>
+                    <div class="flex flex-col justify-center">
+                        <div class="flex items-center gap-1.5">
+                            <h1 class="text-sm md:text-base font-bold tracking-wide text-white leading-tight">Free Republic of Verdis</h1>
+                            <span class="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.2 rounded font-mono">VRD</span>
+                        </div>
+                        <span class="text-[10px] text-slate-400 font-medium">Slobodna Republika Verdis &bull; Danube River</span>
+                    </div>
+                </div>
+
+                <!-- Tab Switchers (Desktop and Mobile) -->
+                <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
+                    <button id="tab-btn-gis" onclick="switchView('gis')" class="tab-button flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white shadow-md transition-all">
+                        <i class="fa-solid fa-map-location-dot"></i>
+                        <span>GIS Map</span>
+                    </button>
+                    <button id="tab-btn-weather" onclick="switchView('weather')" class="tab-button flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all">
+                        <i class="fa-solid fa-cloud-sun"></i>
+                        <span>Weather</span>
+                        <span id="quick-temp-pill" class="hidden md:inline-block ml-1 px-1.5 py-0.2 text-[10px] font-mono bg-slate-800 text-emerald-400 rounded-full">--°C</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- GIS Quick Telemetry Toolbar (Visible when in GIS view) -->
+            <div id="gis-header-toolbar" class="flex flex-wrap items-center justify-between md:justify-end gap-2 w-full md:w-auto">
+                <div class="grid grid-cols-3 gap-1.5 text-center flex-1 md:flex-initial">
+                    <div class="bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1">
+                        <span class="text-[8px] text-slate-400 font-bold uppercase block tracking-wider">Area</span>
+                        <span class="text-xs font-bold text-emerald-400 font-mono">0.501 <span class="text-[9px] font-normal text-slate-400">km²</span></span>
+                    </div>
+                    <div class="bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1">
+                        <span class="text-[8px] text-slate-400 font-bold uppercase block tracking-wider">Perimeter</span>
+                        <span class="text-xs font-bold text-sky-400 font-mono">~4.2 <span class="text-[9px] font-normal text-slate-400">km</span></span>
+                    </div>
+                    <div class="bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1">
+                        <span class="text-[8px] text-slate-400 font-bold uppercase block tracking-wider">Sector</span>
+                        <span class="text-xs font-bold text-amber-400 font-mono">Pocket 3</span>
+                    </div>
+                </div>
+
+                <!-- Layer Switchers & Recenter -->
+                <div class="flex items-center gap-1.5">
+                    <div class="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                        <button class="layer-btn px-2.5 py-1 text-xs font-medium rounded-md bg-slate-800 text-emerald-400 shadow-sm transition-colors" data-layer="esriSat">
+                            <i class="fa-solid fa-satellite mr-1"></i>Sat
+                        </button>
+                        <button class="layer-btn px-2.5 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-slate-200 transition-colors" data-layer="esriTopo">
+                            <i class="fa-solid fa-mountain-sun mr-1"></i>Topo
+                        </button>
+                    </div>
+
+                    <!-- Live Weather Overlay (Rain Radar) -->
+                    <div class="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                        <button id="btn-radar" onclick="toggleRadarOverlay()" class="px-2.5 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-sky-300 transition-colors flex items-center gap-1" title="Toggle Live Rain Radar">
+                            <i class="fa-solid fa-cloud-showers-heavy text-sky-400 text-[10px]"></i>
+                            <span>Radar</span>
+                        </button>
+                    </div>
+
+                    <button id="btn-recenter" class="w-8 h-8 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-lg transition-all flex items-center justify-center shadow-md border border-emerald-400/40" title="Recenter Pocket 3">
+                        <i class="fa-solid fa-crosshairs text-xs"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- Tab 1: GIS Map View Container -->
+    <main id="view-gis" class="flex-1 w-full relative h-full">
+        <!-- Interactive Leaflet Map -->
+        <div id="map" class="absolute inset-0"></div>
+
+        <!-- Floating Radar Timeline & Wheel Controller (Visible when Radar is Active) -->
+        <div id="radar-timeline-panel" class="hidden absolute bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[1000] pointer-events-auto w-[94%] max-w-lg">
+            <div class="glass-panel rounded-2xl p-3 sm:p-3.5 shadow-[0_12px_36px_rgba(0,0,0,0.7)] border border-slate-700/80 bg-slate-900/90 backdrop-blur-md flex flex-col gap-2">
+                <!-- Top Row: Status, Frame Timestamp & Wheel Hint -->
+                <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span id="radar-frame-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span>LIVE</span>
+                        </span>
+                        <span id="radar-frame-time" class="text-xs font-bold text-white font-mono">--:--</span>
+                        <span id="radar-frame-rel" class="text-[10px] text-slate-400 font-medium">Now</span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
+                        <i class="fa-solid fa-arrows-up-down text-[9px] text-sky-400"></i>
+                        <span class="hidden sm:inline">Scroll wheel to scrub time</span>
+                        <span class="sm:hidden">Swipe / wheel</span>
+                    </div>
+                </div>
+
+                <!-- Middle Row: Play/Pause, Step buttons, and Scrub Wheel/Slider -->
+                <div class="flex items-center gap-2.5 pt-0.5">
+                    <!-- Play / Pause Button -->
+                    <button id="radar-btn-play" onclick="toggleRadarAnimation()" class="w-8 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white flex items-center justify-center text-xs shadow-md transition-all shrink-0" title="Play / Pause Radar Loop">
+                        <i id="radar-play-icon" class="fa-solid fa-play"></i>
+                    </button>
+
+                    <!-- Prev Frame Button -->
+                    <button onclick="stepRadarFrame(-1)" class="w-7 h-7 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs transition-colors shrink-0" title="Previous Frame (Past)">
+                        <i class="fa-solid fa-backward-step"></i>
+                    </button>
+
+                    <!-- Timeline Slider & Mouse Wheel Area -->
+                    <div id="radar-wheel-zone" class="flex-1 flex flex-col justify-center px-1 cursor-ew-resize">
+                        <input id="radar-slider" type="range" min="0" max="0" value="0" step="1" oninput="onRadarSliderInput(this.value)" class="w-full accent-sky-400 bg-slate-800 h-2 rounded-lg cursor-pointer">
+                        <div class="flex justify-between items-center text-[9px] font-mono text-slate-500 mt-1">
+                            <span id="radar-label-start">Past</span>
+                            <span class="text-emerald-400 font-semibold">Live</span>
+                            <span id="radar-label-end" class="text-sky-400 font-semibold">Forecast</span>
+                        </div>
+                    </div>
+
+                    <!-- Next Frame Button -->
+                    <button onclick="stepRadarFrame(1)" class="w-7 h-7 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs transition-colors shrink-0" title="Next Frame (Future)">
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating On-Map Real-Time Weather Widget -->
+        <div class="absolute top-4 left-4 z-[1000] pointer-events-auto max-w-[210px] sm:max-w-[240px]">
+            <div class="glass-panel rounded-2xl p-3 shadow-[0_10px_30px_rgba(0,0,0,0.65)] border border-slate-700/80 bg-slate-900/85 backdrop-blur-md">
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-1.5 mb-2">
+                    <span class="flex items-center gap-1.5 text-[9px] uppercase tracking-wider font-bold text-slate-400">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]"></span>
+                        Microclimate HUD
+                    </span>
+                    <button onclick="switchView('weather')" class="text-[10px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-0.5">
+                        <span>Forecast</span>
+                        <i class="fa-solid fa-chevron-right text-[8px]"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-10 h-10 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-center shrink-0 shadow-inner">
+                            <i id="map-weather-icon" class="fa-solid fa-sun text-yellow-400 text-xl"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline">
+                                <span id="map-weather-temp" class="text-2xl font-black text-white font-mono leading-none">--°</span>
+                                <span class="text-xs text-slate-400 font-mono ml-0.5">C</span>
+                            </div>
+                            <span id="map-weather-desc" class="text-[10px] font-medium text-emerald-300 block truncate max-w-[95px]">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-1.5 mt-2 pt-2 border-t border-slate-800/80 text-[10px] font-mono">
+                    <div class="flex items-center gap-1 text-slate-300 bg-slate-950/50 px-1.5 py-1 rounded-md">
+                        <i class="fa-solid fa-wind text-[9px] text-slate-400"></i>
+                        <span id="map-weather-wind">-- km/h</span>
+                    </div>
+                    <div class="flex items-center gap-1 text-slate-300 bg-slate-950/50 px-1.5 py-1 rounded-md">
+                        <i class="fa-solid fa-droplet text-[9px] text-sky-400"></i>
+                        <span id="map-weather-humidity">--%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Live Cursor Coordinates HUD -->
+        <div class="absolute bottom-5 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-4 z-[1000] pointer-events-none w-52">
+            <div class="glass-panel rounded-xl p-2.5 shadow-[0_8px_30px_rgb(0,0,0,0.6)]">
+                <div class="flex items-center justify-between text-slate-400 text-[9px] uppercase font-bold tracking-wider mb-1.5">
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]"></span>
+                        Pocket 3 Cadastre
+                    </span>
+                    <i class="fa-solid fa-location-crosshairs text-emerald-400"></i>
+                </div>
+                <div class="flex justify-between items-center text-[10px] font-mono border-b border-slate-700/60 pb-1 mb-1">
+                    <span class="text-slate-400 font-sans text-[9px]">LATITUDE</span>
+                    <span id="hud-lat" class="text-emerald-300 font-semibold tracking-wider">45.594642°</span>
+                </div>
+                <div class="flex justify-between items-center text-[10px] font-mono">
+                    <span class="text-slate-400 font-sans text-[9px]">LONGITUDE</span>
+                    <span id="hud-lng" class="text-emerald-300 font-semibold tracking-wider">18.907913°</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Tab 2: National Weather Service View Container -->
+    <main id="view-weather" class="hidden flex-1 w-full overflow-y-auto bg-slate-950 p-4 md:p-8">
+        <div class="max-w-5xl mx-auto flex flex-col gap-6">
+            
+            <!-- Weather Header Title & Seal -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 glass-panel p-5 rounded-2xl border border-slate-800">
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-16 rounded-xl bg-slate-800/80 border border-slate-700 p-1.5 flex items-center justify-center shrink-0">
+                        <img 
+                            src="https://commons.wikimedia.org/wiki/Special:FilePath/Coat_of_arms_of_Verdis.png?width=200" 
+                            alt="Verdis Coat of Arms" 
+                            class="w-full h-full object-contain"
+                            onerror="this.onerror=null; this.src='https://placehold.co/80x100/065f46/ffffff?text=VRD';"
+                        />
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs uppercase tracking-wider text-emerald-400 font-semibold">Department of Meteorology</span>
+                            <span id="telemetry-badge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>Live Feed
+                            </span>
+                        </div>
+                        <h2 class="text-2xl font-bold text-white tracking-tight">National Weather Service</h2>
+                        <p class="text-xs text-slate-400">Danube Riparian Meteorological Station &bull; 45.5946° N, 18.9079° E</p>
+                    </div>
+                </div>
+                <button onclick="fetchWeatherData()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-emerald-400 rounded-xl text-xs font-semibold border border-slate-700 transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Refresh Data</span>
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="flex flex-col items-center justify-center py-20">
+                <div class="loader mb-4"></div>
+                <p class="text-slate-400 text-sm font-medium tracking-wide">Gathering Danube meteorological telemetry...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-state" class="hidden flex-col items-center justify-center py-16 glass-panel rounded-3xl">
+                <div class="bg-red-500/10 text-red-400 w-16 h-16 rounded-full flex items-center justify-center mb-4 border border-red-500/20">
+                    <i class="fa-solid fa-triangle-exclamation text-3xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-1">Telemetry Interrupted</h3>
+                <p class="text-slate-400 text-xs text-center max-w-sm mb-6">Could not reach the automated weather sensors. Retrying will engage backup telemetry.</p>
+                <button onclick="fetchWeatherData()" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg">
+                    Retry Connection
+                </button>
+            </div>
+
+            <!-- Main Weather Content -->
+            <div id="weather-content" class="hidden flex-col gap-6 w-full">
+                
+                <!-- Current Weather Hero Card -->
+                <section class="rounded-3xl overflow-hidden glass-panel border border-slate-800 shadow-2xl relative">
+                    <div class="weather-hero-gradient p-6 md:p-8 text-white relative overflow-hidden">
+                        <!-- Decorative Background Icon -->
+                        <i id="bg-weather-icon" class="fa-solid fa-cloud absolute -right-12 -bottom-12 text-[14rem] opacity-10 rotate-12 pointer-events-none"></i>
+                        
+                        <div class="flex flex-col lg:flex-row justify-between items-center lg:items-start gap-8 relative z-10">
+                            <!-- Left: Primary Temperature & Status -->
+                            <div class="flex flex-col items-center lg:items-start text-center lg:text-left">
+                                <div class="inline-flex items-center gap-2 bg-black/25 backdrop-blur-md px-3.5 py-1 rounded-full text-xs font-medium mb-4 border border-white/20">
+                                    <i class="fa-solid fa-location-dot text-emerald-300"></i>
+                                    <span>Verdis Pocket 3</span>
+                                    <span class="text-slate-300 text-[10px] font-mono">Elevation 82m</span>
+                                </div>
+                                
+                                <div class="flex items-center gap-5">
+                                    <div class="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/20 shadow-inner flex items-center justify-center">
+                                        <i id="current-icon" class="fa-solid fa-sun text-5xl md:text-6xl text-yellow-300 drop-shadow-md"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-5xl md:text-7xl font-extrabold tracking-tighter" id="current-temp">--°C</div>
+                                        <div class="text-base md:text-lg font-medium text-emerald-100 capitalize" id="current-desc">Loading conditions...</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Meteorological Parameters Grid -->
+                            <div class="grid grid-cols-2 gap-3 w-full lg:w-auto min-w-[280px] sm:min-w-[320px]">
+                                <div class="bg-black/20 rounded-2xl p-3.5 backdrop-blur-sm border border-white/10 flex flex-col items-center justify-center">
+                                    <i class="fa-solid fa-droplet text-sky-300 text-xl mb-1.5"></i>
+                                    <span class="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Humidity</span>
+                                    <span class="text-lg font-bold text-white mt-0.5" id="current-humidity">--%</span>
+                                </div>
+                                <div class="bg-black/20 rounded-2xl p-3.5 backdrop-blur-sm border border-white/10 flex flex-col items-center justify-center">
+                                    <i class="fa-solid fa-wind text-slate-300 text-xl mb-1.5"></i>
+                                    <span class="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Danube Wind</span>
+                                    <span class="text-lg font-bold text-white mt-0.5" id="current-wind">-- km/h</span>
+                                </div>
+                                <div class="bg-black/20 rounded-2xl p-3.5 backdrop-blur-sm border border-white/10 flex flex-col items-center justify-center">
+                                    <i class="fa-solid fa-sun text-amber-300 text-xl mb-1.5"></i>
+                                    <span class="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Sunrise</span>
+                                    <span class="text-lg font-bold text-white mt-0.5 font-mono" id="current-sunrise">--:--</span>
+                                </div>
+                                <div class="bg-black/20 rounded-2xl p-3.5 backdrop-blur-sm border border-white/10 flex flex-col items-center justify-center">
+                                    <i class="fa-solid fa-moon text-indigo-300 text-xl mb-1.5"></i>
+                                    <span class="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Sunset</span>
+                                    <span class="text-lg font-bold text-white mt-0.5 font-mono" id="current-sunset">--:--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 24-Hour Hourly Forecast Section -->
+                <section class="glass-panel p-5 rounded-3xl border border-slate-800">
+                    <div class="flex items-center justify-between mb-3 px-1">
+                        <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-regular fa-clock text-sky-400"></i>
+                            24-Hour Microclimate Timeline
+                        </h4>
+                        <span class="text-[10px] text-slate-400 font-mono">Hourly Resolution</span>
+                    </div>
+                    
+                    <div class="relative">
+                        <div id="hourly-container" class="flex overflow-x-auto gap-3 hide-scrollbar cursor-grab active:cursor-grabbing pb-2 relative z-0">
+                            <!-- Hourly forecast items inserted here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 7-Day Forecast Grid -->
+                <section class="flex flex-col gap-3">
+                    <div class="flex items-center justify-between px-1">
+                        <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-regular fa-calendar-days text-emerald-400"></i>
+                            7-Day Territorial Forecast
+                        </h4>
+                        <span class="text-[10px] text-slate-400 font-mono">Open-Meteo Sensor Matrix</span>
+                    </div>
+                    
+                    <div id="forecast-container" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                        <!-- 7-day forecast cards injected here -->
+                    </div>
+                </section>
+
+            </div>
+            
+            <!-- Weather Footer -->
+            <footer class="mt-6 pt-6 border-t border-slate-800 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span class="flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-emerald-500"></i>
+                    Official Publication of the Free Republic of Verdis
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <i class="fa-solid fa-satellite-dish text-sky-400"></i>
+                    Meteorological Sensor Data powered by Open-Meteo
+                </span>
+            </footer>
+
+        </div>
+    </main>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+    <script>
+        // Official Coordinates for Verdis Pocket 3
+        const VERDIS_CENTER = [45.594642, 18.907913];
+        const ZOOM_LEVEL = 15;
+
+        // Exact Pocket 3 Polygon coordinates matching official cadastre
+        const pocket3Coords = [
+            [45.586113, 18.900140], // Southern Apex
+            [45.592079, 18.903325],
+            [45.595802, 18.906650],
+            [45.599797, 18.911659], // True Northern Apex (Dashed Line Confluence)
+            [45.598249, 18.912862],
+            [45.595094, 18.913249], // North-Eastern River Curve
+            [45.593062, 18.911462], // Mid-Eastern Riverbank
+            [45.591152, 18.907477]  // South-Eastern Shoreline
+        ];
+
+        // Initialize Leaflet Map
+        const map = L.map('map', {
+            center: VERDIS_CENTER,
+            zoom: ZOOM_LEVEL,
+            zoomControl: false
+        });
+
+        // Add custom position zoom control & attribution
+        L.control.zoom({ position: 'topright' }).addTo(map);
+        L.control.attribution({ 
+            position: 'bottomright', 
+            prefix: '<span class="text-slate-400 text-[10px]">Leaflet &bull; Pocket 3 Cadastre</span>' 
+        }).addTo(map);
+
+        // Define Esri Base Layers (Free, reliable, no API key needed)
+        const tileLayers = {
+            esriSat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: '&copy; Esri, Maxar, Earthstar Geographics'
+            }),
+            esriTopo: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: '&copy; Esri, HERE, Garmin, Intermap'
+            })
+        };
+
+        // Activate Default Layer
+        let currentLayer = tileLayers.esriSat;
+        currentLayer.addTo(map);
+
+        // Live Rain Radar & Nowcast Timeline Engine via RainViewer Public API
+        let radarFrames = [];
+        let radarTileLayers = {};
+        let activeRadarLayer = null;
+        let radarCurrentIndex = 0;
+        let radarAnimInterval = null;
+        let isRadarActive = false;
+        let rainViewerHost = 'https://tilecache.rainviewer.com';
+
+        async function fetchRainViewerFrames() {
+            try {
+                const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+                if (!res.ok) throw new Error("RainViewer API responded with HTTP " + res.status);
+                const data = await res.json();
+                
+                if (data.host) rainViewerHost = data.host.replace(/\/+$/, '');
+                
+                const pastFrames = (data.radar && data.radar.past) ? data.radar.past.map(f => ({ ...f, type: 'past' })) : [];
+                const nowcastFrames = (data.radar && data.radar.nowcast) ? data.radar.nowcast.map(f => ({ ...f, type: 'nowcast' })) : [];
+                
+                radarFrames = [...pastFrames, ...nowcastFrames];
+                return radarFrames;
+            } catch (err) {
+                console.warn("Could not retrieve RainViewer frames:", err);
+                return [];
+            }
+        }
+
+        function createRadarTileLayer(frame) {
+            const cleanPath = frame.path.replace(/^\/+/, '');
+            const radarTileUrl = `${rainViewerHost}/${cleanPath}/256/{z}/{x}/{y}/2/1_1.png`;
+            return L.tileLayer(radarTileUrl, {
+                opacity: 0.72,
+                zIndex: 100,
+                maxNativeZoom: 7,
+                maxZoom: 19,
+                tileSize: 256,
+                attribution: '&copy; <a href="https://www.rainviewer.com" target="_blank" class="text-sky-400">RainViewer</a>'
+            });
+        }
+
+        function displayRadarFrame(index) {
+            if (!radarFrames || radarFrames.length === 0) return;
+            
+            // Constrain index
+            if (index < 0) index = 0;
+            if (index >= radarFrames.length) index = radarFrames.length - 1;
+            radarCurrentIndex = index;
+
+            const frame = radarFrames[index];
+            const slider = document.getElementById('radar-slider');
+            if (slider) slider.value = index;
+
+            // Remove existing layer
+            if (activeRadarLayer) {
+                map.removeLayer(activeRadarLayer);
+            }
+
+            // Retrieve or instantiate tile layer for this frame
+            if (!radarTileLayers[frame.path]) {
+                radarTileLayers[frame.path] = createRadarTileLayer(frame);
+            }
+
+            activeRadarLayer = radarTileLayers[frame.path];
+            activeRadarLayer.addTo(map);
+            if (territoryPolygon) territoryPolygon.bringToFront();
+
+            // Update Frame HUD Badges & Labels
+            updateRadarHUD(frame, index);
+        }
+
+        function updateRadarHUD(frame, index) {
+            const timeEl = document.getElementById('radar-frame-time');
+            const relEl = document.getElementById('radar-frame-rel');
+            const badgeEl = document.getElementById('radar-frame-badge');
+            
+            if (!frame || !frame.time) return;
+
+            const date = new Date(frame.time * 1000);
+            const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            if (timeEl) timeEl.textContent = timeStr;
+
+            const nowSec = Math.floor(Date.now() / 1000);
+            const diffMin = Math.round((frame.time - nowSec) / 60);
+
+            // Identify whether frame is past, live reference point, or future nowcast
+            if (frame.type === 'nowcast' || diffMin > 4) {
+                if (badgeEl) {
+                    badgeEl.className = "px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-1.5";
+                    badgeEl.innerHTML = '<i class="fa-solid fa-crystal-ball text-[9px] text-sky-400"></i><span>FORECAST</span>';
+                }
+                if (relEl) relEl.textContent = `+${diffMin} min`;
+            } else if (Math.abs(diffMin) <= 7) {
+                if (badgeEl) {
+                    badgeEl.className = "px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5";
+                    badgeEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span><span>LIVE</span>';
+                }
+                if (relEl) relEl.textContent = 'Now';
+            } else {
+                if (badgeEl) {
+                    badgeEl.className = "px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1.5";
+                    badgeEl.innerHTML = '<i class="fa-solid fa-clock-rotate-left text-[9px] text-slate-400"></i><span>PAST</span>';
+                }
+                if (relEl) relEl.textContent = `${diffMin} min`;
+            }
+        }
+
+        function stepRadarFrame(delta) {
+            if (!radarFrames || radarFrames.length === 0) return;
+            let nextIndex = radarCurrentIndex + delta;
+            if (nextIndex < 0) nextIndex = 0;
+            if (nextIndex >= radarFrames.length) nextIndex = radarFrames.length - 1;
+            displayRadarFrame(nextIndex);
+        }
+
+        function onRadarSliderInput(val) {
+            displayRadarFrame(parseInt(val, 10));
+        }
+
+        function toggleRadarAnimation() {
+            const playIcon = document.getElementById('radar-play-icon');
+            const playBtn = document.getElementById('radar-btn-play');
+
+            if (radarAnimInterval) {
+                // Pause Animation
+                clearInterval(radarAnimInterval);
+                radarAnimInterval = null;
+                if (playIcon) playIcon.className = "fa-solid fa-play";
+                if (playBtn) playBtn.className = "w-8 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white flex items-center justify-center text-xs shadow-md transition-all shrink-0";
+            } else {
+                // Start Animation Loop
+                if (playIcon) playIcon.className = "fa-solid fa-pause";
+                if (playBtn) playBtn.className = "w-8 h-8 rounded-lg bg-amber-600 hover:bg-amber-500 active:scale-95 text-white flex items-center justify-center text-xs shadow-md transition-all shrink-0";
+                
+                radarAnimInterval = setInterval(() => {
+                    if (!radarFrames || radarFrames.length === 0) return;
+                    let next = radarCurrentIndex + 1;
+                    if (next >= radarFrames.length) next = 0;
+                    displayRadarFrame(next);
+                }, 750);
+            }
+        }
+
+        async function toggleRadarOverlay() {
+            const btn = document.getElementById('btn-radar');
+            const timelinePanel = document.getElementById('radar-timeline-panel');
+            
+            if (isRadarActive) {
+                // Turn OFF Radar
+                isRadarActive = false;
+                if (radarAnimInterval) {
+                    clearInterval(radarAnimInterval);
+                    radarAnimInterval = null;
+                }
+                if (activeRadarLayer) {
+                    map.removeLayer(activeRadarLayer);
+                    activeRadarLayer = null;
+                }
+                btn.className = "px-2.5 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-sky-300 transition-colors flex items-center gap-1";
+                btn.innerHTML = '<i class="fa-solid fa-cloud-showers-heavy text-sky-400 text-[10px]"></i><span>Radar</span>';
+                if (timelinePanel) timelinePanel.classList.add('hidden');
+                return;
+            }
+
+            // Turn ON Radar
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sky-400 text-[10px]"></i><span>Radar</span>';
+            
+            try {
+                const frames = await fetchRainViewerFrames();
+                if (frames && frames.length > 0) {
+                    isRadarActive = true;
+                    const slider = document.getElementById('radar-slider');
+                    if (slider) {
+                        slider.min = 0;
+                        slider.max = frames.length - 1;
+                    }
+
+                    // Locate index of the most recent past frame (the "live" anchor)
+                    const pastCount = frames.filter(f => f.type === 'past').length;
+                    const defaultIndex = pastCount > 0 ? pastCount - 1 : 0;
+                    
+                    displayRadarFrame(defaultIndex);
+
+                    btn.className = "px-2.5 py-1 text-xs font-medium rounded-md bg-sky-950/80 text-sky-300 border border-sky-500/40 shadow-sm transition-colors flex items-center gap-1";
+                    btn.innerHTML = '<i class="fa-solid fa-cloud-showers-heavy text-sky-400 text-[10px]"></i><span>Radar ON</span>';
+                    
+                    if (timelinePanel) timelinePanel.classList.remove('hidden');
+                } else {
+                    throw new Error("No radar frames returned");
+                }
+            } catch (err) {
+                console.warn("Could not activate radar overlay:", err);
+                btn.className = "px-2.5 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-sky-300 transition-colors flex items-center gap-1";
+                btn.innerHTML = '<i class="fa-solid fa-cloud-showers-heavy text-sky-400 text-[10px]"></i><span>Radar</span>';
+                if (timelinePanel) timelinePanel.classList.add('hidden');
+            }
+        }
+
+        // Attach Mouse Wheel Scrubbing Listener to Timeline Bar
+        document.addEventListener('DOMContentLoaded', () => {
+            const wheelZone = document.getElementById('radar-timeline-panel');
+            if (wheelZone) {
+                wheelZone.addEventListener('wheel', (e) => {
+                    if (!isRadarActive || !radarFrames || radarFrames.length === 0) return;
+                    e.preventDefault();
+                    // Scroll up = advance into future; scroll down = rewind into past
+                    if (e.deltaY < 0) {
+                        stepRadarFrame(1);
+                    } else if (e.deltaY > 0) {
+                        stepRadarFrame(-1);
+                    }
+                }, { passive: false });
+            }
+        });
+
+        // Render Claim Vector Polygon
+        const territoryPolygon = L.polygon(pocket3Coords, {
+            color: '#10b981',       // Emerald border
+            weight: 3,
+            opacity: 0.95,
+            fillColor: '#059669',   // Emerald fill
+            fillOpacity: 0.35,
+            dashArray: '6, 6'       // Dashed border indicating claimed cadastre
+        }).addTo(map);
+
+        territoryPolygon.bindPopup(`
+            <div class="p-2 min-w-[160px]">
+                <div class="flex items-center gap-2 mb-2 border-b border-slate-700 pb-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <h4 class="font-bold text-emerald-400 text-sm">Pocket 3 (Verdis)</h4>
+                </div>
+                <div class="space-y-1 text-xs text-slate-300">
+                    <div class="flex justify-between"><span>Area:</span><b class="text-white font-mono">0.501 km²</b></div>
+                    <div class="flex justify-between"><span>Perimeter:</span><b class="text-white font-mono">~4.2 km</b></div>
+                    <div class="flex justify-between"><span>Status:</span><b class="text-amber-400">Active Claim</b></div>
+                </div>
+            </div>
+        `);
+
+        // Markers Configuration
+        const markersData = [
+            {
+                lat: 45.594642,
+                lng: 18.907913,
+                title: "Pocket 3 Territory Center",
+                subtitle: "Verdis Administrative Focal Point",
+                icon: L.divIcon({ className: 'beacon-pulse', iconSize: [22, 22], iconAnchor: [11, 11] }),
+                iconTag: '<i class="fa-solid fa-flag text-emerald-400"></i>'
+            },
+            {
+                lat: 45.599797,
+                lng: 18.911659,
+                title: "Northern Apex",
+                subtitle: "Cadastral Confluence Point",
+                icon: L.divIcon({ className: 'tip-icon', html: '<i class="fa-solid fa-arrow-up"></i>', iconSize: [24, 24], iconAnchor: [12, 12] }),
+                iconTag: '<i class="fa-solid fa-compass text-sky-400"></i>'
+            },
+            {
+                lat: 45.586113,
+                lng: 18.900140,
+                title: "Southern Apex",
+                subtitle: "Danube Meander Shoreline Point",
+                icon: L.divIcon({ className: 'tip-icon', html: '<i class="fa-solid fa-arrow-down"></i>', iconSize: [24, 24], iconAnchor: [12, 12] }),
+                iconTag: '<i class="fa-solid fa-compass text-sky-400"></i>'
+            }
+        ];
+
+        // Add Markers to Map
+        const plottedMarkers = markersData.map(item => {
+            const marker = L.marker([item.lat, item.lng], { icon: item.icon }).addTo(map);
+            marker.bindPopup(`
+                <div class="p-2 text-center min-w-[150px]">
+                    <h5 class="font-bold text-white text-xs mb-1 flex items-center justify-center gap-1.5">
+                        ${item.iconTag} ${item.title}
+                    </h5>
+                    <p class="text-[10px] text-slate-400 mb-1.5">${item.subtitle}</p>
+                    <span class="inline-block px-2 py-0.5 bg-slate-800 rounded text-[10px] font-mono text-emerald-300">
+                        ${item.lat.toFixed(6)}°, ${item.lng.toFixed(6)}°
+                    </span>
+                </div>
+            `);
+            return marker;
+        });
+
+        // Live Telemetry HUD Elements
+        const hudLat = document.getElementById('hud-lat');
+        const hudLng = document.getElementById('hud-lng');
+
+        function updateHUD(lat, lng) {
+            if (hudLat && hudLng) {
+                hudLat.textContent = lat.toFixed(6) + '°';
+                hudLng.textContent = lng.toFixed(6) + '°';
+            }
+        }
+
+        map.on('mousemove', (e) => {
+            updateHUD(e.latlng.lat, e.latlng.lng);
+        });
+
+        map.on('move', () => {
+            const center = map.getCenter();
+            updateHUD(center.lat, center.lng);
+        });
+
+        // Recenter Trigger
+        document.getElementById('btn-recenter').addEventListener('click', () => {
+            map.flyTo(VERDIS_CENTER, ZOOM_LEVEL, { duration: 1.2 });
+            setTimeout(() => {
+                plottedMarkers[0].openPopup();
+            }, 1200);
+        });
+
+        // Base Layer Switcher Buttons
+        const layerButtons = document.querySelectorAll('.layer-btn');
+        layerButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.currentTarget;
+                const layerKey = target.getAttribute('data-layer');
+                
+                if (tileLayers[layerKey] && currentLayer !== tileLayers[layerKey]) {
+                    layerButtons.forEach(b => {
+                        b.classList.remove('bg-slate-800', 'text-emerald-400', 'shadow-sm');
+                        b.classList.add('text-slate-400');
+                    });
+                    
+                    target.classList.remove('text-slate-400');
+                    target.classList.add('bg-slate-800', 'text-emerald-400', 'shadow-sm');
+
+                    map.removeLayer(currentLayer);
+                    currentLayer = tileLayers[layerKey];
+                    currentLayer.addTo(map);
+                    if (radarLayer) radarLayer.bringToFront();
+                    territoryPolygon.bringToFront();
+                }
+            });
+        });
+
+        // Tab Switching Logic
+        function switchView(viewName) {
+            const gisView = document.getElementById('view-gis');
+            const weatherView = document.getElementById('view-weather');
+            const gisToolbar = document.getElementById('gis-header-toolbar');
+            
+            const btnGis = document.getElementById('tab-btn-gis');
+            const btnWeather = document.getElementById('tab-btn-weather');
+
+            if (viewName === 'gis') {
+                gisView.classList.remove('hidden');
+                weatherView.classList.add('hidden');
+                gisToolbar.classList.remove('hidden');
+                gisToolbar.classList.add('flex');
+
+                btnGis.className = 'tab-button flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white shadow-md transition-all';
+                btnWeather.className = 'tab-button flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all';
+
+                // Refresh Leaflet size calculation upon returning from hidden state
+                setTimeout(() => {
+                    map.invalidateSize();
+                }, 100);
+            } else {
+                gisView.classList.add('hidden');
+                weatherView.classList.remove('hidden');
+                weatherView.classList.add('flex');
+                gisToolbar.classList.add('hidden');
+                gisToolbar.classList.remove('flex');
+
+                btnWeather.className = 'tab-button flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white shadow-md transition-all';
+                btnGis.className = 'tab-button flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all';
+            }
+        }
+
+        // Weather Engine Setup for Pocket 3 Coordinates
+        const WEATHER_LAT = 45.594642;
+        const WEATHER_LON = 18.907913;
+        
+        const PRIMARY_API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,is_day&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=Europe%2FBelgrade`;
+        const BACKUP_API_URL = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,is_day&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=UTC`;
+
+        const loadingState = document.getElementById('loading-state');
+        const errorState = document.getElementById('error-state');
+        const weatherContent = document.getElementById('weather-content');
+        const forecastContainer = document.getElementById('forecast-container');
+        const hourlyContainer = document.getElementById('hourly-container');
+
+        // WMO Weather Interpretation Codes
+        function getWeatherInfo(code, isDay = 1) {
+            const isNight = isDay === 0;
+            const sunColor = 'text-yellow-400';
+            const moonColor = 'text-indigo-300';
+            const cloudColor = 'text-slate-300';
+            const rainColor = 'text-sky-400';
+
+            const map = {
+                0: { icon: isNight ? 'fa-moon' : 'fa-sun', color: isNight ? moonColor : sunColor, text: 'Clear Sky' },
+                1: { icon: isNight ? 'fa-moon' : 'fa-sun', color: isNight ? moonColor : sunColor, text: 'Mainly Clear' },
+                2: { icon: isNight ? 'fa-cloud-moon' : 'fa-cloud-sun', color: isNight ? moonColor : sunColor, text: 'Partly Cloudy' },
+                3: { icon: 'fa-cloud', color: cloudColor, text: 'Overcast' },
+                45: { icon: 'fa-smog', color: cloudColor, text: 'Danube Fog' },
+                48: { icon: 'fa-smog', color: cloudColor, text: 'Rime Fog' },
+                51: { icon: 'fa-cloud-rain', color: rainColor, text: 'Light Drizzle' },
+                53: { icon: 'fa-cloud-rain', color: rainColor, text: 'Moderate Drizzle' },
+                55: { icon: 'fa-cloud-rain', color: rainColor, text: 'Dense Drizzle' },
+                61: { icon: 'fa-cloud-showers-heavy', color: rainColor, text: 'Slight Rain' },
+                63: { icon: 'fa-cloud-showers-heavy', color: rainColor, text: 'Moderate Rain' },
+                65: { icon: 'fa-cloud-showers-heavy', color: rainColor, text: 'Heavy Rain' },
+                71: { icon: 'fa-snowflake', color: 'text-sky-200', text: 'Slight Snow' },
+                73: { icon: 'fa-snowflake', color: 'text-sky-200', text: 'Moderate Snow' },
+                75: { icon: 'fa-snowflake', color: 'text-sky-200', text: 'Heavy Snow' },
+                80: { icon: 'fa-cloud-showers-water', color: rainColor, text: 'Rain Showers' },
+                81: { icon: 'fa-cloud-showers-water', color: rainColor, text: 'Heavy Showers' },
+                95: { icon: 'fa-bolt-lightning', color: 'text-amber-400', text: 'Thunderstorm' }
+            };
+            
+            return map[code] || { icon: 'fa-cloud', color: cloudColor, text: 'Overcast' };
+        }
+
+        function formatDate(dateString, index) {
+            if (index === 0) return 'Today';
+            if (index === 1) return 'Tomorrow';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        }
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false });
+        }
+
+        function formatHour(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+        }
+
+        function generateTelemetryFallback() {
+            const now = new Date();
+            const hourlyTimes = [];
+            const hourlyTemps = [];
+            const hourlyCodes = [];
+            const hourlyIsDay = [];
+
+            for (let i = 0; i < 24; i++) {
+                const hourDate = new Date(now.getTime() + i * 3600000);
+                hourlyTimes.push(hourDate.toISOString().slice(0, 16));
+                const hour = hourDate.getHours();
+                const isDay = hour >= 6 && hour < 19 ? 1 : 0;
+                hourlyIsDay.push(isDay);
+                hourlyTemps.push(Math.round(17 + 6 * Math.sin((hour - 8) * Math.PI / 12)));
+                hourlyCodes.push(i % 6 === 0 ? 2 : 1);
+            }
+
+            const dailyTimes = [];
+            const dailyMax = [];
+            const dailyMin = [];
+            const dailyCodes = [];
+            const dailySunrise = [];
+            const dailySunset = [];
+
+            for (let d = 0; d < 7; d++) {
+                const dayDate = new Date(now.getTime() + d * 86400000);
+                dailyTimes.push(dayDate.toISOString().slice(0, 10));
+                dailyMax.push(21 + (d % 3));
+                dailyMin.push(11 + (d % 2));
+                dailyCodes.push(d % 3 === 0 ? 2 : (d % 4 === 0 ? 61 : 0));
+                
+                const sRise = new Date(dayDate);
+                sRise.setHours(6, 12, 0);
+                dailySunrise.push(sRise.toISOString());
+
+                const sSet = new Date(dayDate);
+                sSet.setHours(18, 48, 0);
+                dailySunset.push(sSet.toISOString());
+            }
+
+            return {
+                current: {
+                    temperature_2m: 19,
+                    relative_humidity_2m: 64,
+                    wind_speed_10m: 11.2,
+                    weather_code: 1,
+                    is_day: (now.getHours() >= 6 && now.getHours() < 19) ? 1 : 0,
+                    time: hourlyTimes[0]
+                },
+                hourly: {
+                    time: hourlyTimes,
+                    temperature_2m: hourlyTemps,
+                    weather_code: hourlyCodes,
+                    is_day: hourlyIsDay
+                },
+                daily: {
+                    time: dailyTimes,
+                    temperature_2m_max: dailyMax,
+                    temperature_2m_min: dailyMin,
+                    weather_code: dailyCodes,
+                    sunrise: dailySunrise,
+                    sunset: dailySunset
+                }
+            };
+        }
+
+        async function fetchWeatherData() {
+            loadingState.classList.remove('hidden');
+            errorState.classList.add('hidden');
+            weatherContent.classList.add('hidden');
+            
+            let data = null;
+            let isLive = true;
+
+            try {
+                const res = await fetch(PRIMARY_API_URL);
+                if (res.ok) data = await res.json();
+            } catch (err) {
+                console.warn("Primary weather endpoint reached error, trying backup:", err);
+            }
+
+            if (!data) {
+                try {
+                    const res = await fetch(BACKUP_API_URL);
+                    if (res.ok) data = await res.json();
+                } catch (err) {
+                    console.warn("Backup endpoint reached error:", err);
+                }
+            }
+
+            if (!data) {
+                data = generateTelemetryFallback();
+                isLive = false;
+            }
+
+            try {
+                renderWeather(data);
+                
+                const badge = document.getElementById('telemetry-badge');
+                if (badge) {
+                    if (isLive) {
+                        badge.className = "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30";
+                        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>Live Sensor';
+                    } else {
+                        badge.className = "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-400/20 text-amber-300 border border-amber-400/30";
+                        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5"></span>Station Cache';
+                    }
+                }
+
+                loadingState.classList.add('hidden');
+                weatherContent.classList.remove('hidden');
+                weatherContent.classList.add('flex');
+            } catch (e) {
+                console.error("Rendering weather interface failed:", e);
+                loadingState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+                errorState.classList.add('flex');
+            }
+        }
+
+        function renderWeather(data) {
+            const { current, daily, hourly } = data;
+            
+            // 1. Current Weather
+            const currentTemp = Math.round(current.temperature_2m);
+            const currentInfo = getWeatherInfo(current.weather_code, current.is_day);
+            
+            document.getElementById('current-temp').innerText = `${currentTemp}°C`;
+            document.getElementById('current-desc').innerText = currentInfo.text;
+            document.getElementById('current-humidity').innerText = `${current.relative_humidity_2m}%`;
+            document.getElementById('current-wind').innerText = `${current.wind_speed_10m} km/h`;
+            
+            // Quick temp indicator on nav
+            const quickTemp = document.getElementById('quick-temp-pill');
+            if (quickTemp) {
+                quickTemp.innerText = `${currentTemp}°C`;
+            }
+
+            // Sync On-Map Floating Weather HUD
+            const mapWeatherTemp = document.getElementById('map-weather-temp');
+            const mapWeatherDesc = document.getElementById('map-weather-desc');
+            const mapWeatherIcon = document.getElementById('map-weather-icon');
+            const mapWeatherWind = document.getElementById('map-weather-wind');
+            const mapWeatherHum = document.getElementById('map-weather-humidity');
+
+            if (mapWeatherTemp) mapWeatherTemp.innerText = `${currentTemp}°`;
+            if (mapWeatherDesc) mapWeatherDesc.innerText = currentInfo.text;
+            if (mapWeatherWind) mapWeatherWind.innerText = `${current.wind_speed_10m}k/h`;
+            if (mapWeatherHum) mapWeatherHum.innerText = `${current.relative_humidity_2m}%`;
+            if (mapWeatherIcon) {
+                mapWeatherIcon.className = `fa-solid ${currentInfo.icon} ${currentInfo.color} text-xl`;
+            }
+
+            // Update Center Map Marker Popup with Live Weather
+            if (plottedMarkers && plottedMarkers[0]) {
+                plottedMarkers[0].bindPopup(`
+                    <div class="p-2 min-w-[170px] text-center">
+                        <h5 class="font-bold text-white text-xs mb-1 flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-flag text-emerald-400"></i> Pocket 3 Focal Point
+                        </h5>
+                        <div class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800 border border-slate-700 my-1 font-mono text-xs">
+                            <i class="fa-solid ${currentInfo.icon} ${currentInfo.color}"></i>
+                            <span class="text-white font-bold">${currentTemp}°C</span>
+                            <span class="text-slate-400 text-[10px] capitalize">(${currentInfo.text})</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-1">Wind: ${current.wind_speed_10m} km/h &bull; Humidity: ${current.relative_humidity_2m}%</p>
+                    </div>
+                `);
+            }
+
+            document.getElementById('current-sunrise').innerText = formatTime(daily.sunrise[0]);
+            document.getElementById('current-sunset').innerText = formatTime(daily.sunset[0]);
+            
+            const currentIconEl = document.getElementById('current-icon');
+            currentIconEl.className = `fa-solid ${currentInfo.icon} text-5xl md:text-6xl ${currentInfo.color} drop-shadow-md`;
+            
+            const bgIcon = document.getElementById('bg-weather-icon');
+            bgIcon.className = `fa-solid ${currentInfo.icon} absolute -right-12 -bottom-12 text-[14rem] opacity-10 rotate-12 pointer-events-none`;
+
+            // 2. Hourly Forecast (24 Hours)
+            hourlyContainer.innerHTML = '';
+            const currentHourIso = current.time;
+            let startIndex = hourly.time.findIndex(t => t === currentHourIso);
+            if (startIndex === -1) startIndex = 0;
+            
+            for (let i = startIndex; i < startIndex + 24 && i < hourly.time.length; i++) {
+                const timeStr = hourly.time[i];
+                const temp = Math.round(hourly.temperature_2m[i]);
+                const isDay = hourly.is_day[i];
+                const info = getWeatherInfo(hourly.weather_code[i], isDay);
+                const displayHour = i === startIndex ? 'Now' : formatHour(timeStr);
+                
+                const hourEl = document.createElement('div');
+                hourEl.className = `flex flex-col items-center justify-between min-w-[78px] p-3.5 rounded-2xl border transition-all ${
+                    i === startIndex 
+                    ? 'bg-emerald-500/20 border-emerald-500/40 shadow-sm' 
+                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                }`;
+                
+                hourEl.innerHTML = `
+                    <span class="text-xs font-medium text-slate-400 mb-2.5">${displayHour}</span>
+                    <i class="fa-solid ${info.icon} ${info.color} text-xl mb-2.5"></i>
+                    <span class="text-sm font-bold text-white font-mono">${temp}°</span>
+                `;
+                hourlyContainer.appendChild(hourEl);
+            }
+
+            // 3. 7-Day Forecast Grid
+            forecastContainer.innerHTML = '';
+            for (let i = 0; i < daily.time.length; i++) {
+                const dateStr = daily.time[i];
+                const maxTemp = Math.round(daily.temperature_2m_max[i]);
+                const minTemp = Math.round(daily.temperature_2m_min[i]);
+                const weatherInfo = getWeatherInfo(daily.weather_code[i], 1);
+                const displayDate = formatDate(dateStr, i);
+                
+                const card = document.createElement('div');
+                card.className = `glass-panel rounded-2xl p-3.5 flex flex-col items-center justify-between text-center border transition hover:-translate-y-0.5 duration-200 ${
+                    i === 0 ? 'border-emerald-500/50 bg-emerald-950/20' : 'border-slate-800'
+                }`;
+                
+                card.innerHTML = `
+                    <div class="text-xs font-bold text-slate-300 mb-1.5">${displayDate}</div>
+                    <i class="fa-solid ${weatherInfo.icon} ${weatherInfo.color} text-2xl my-2"></i>
+                    <div class="text-[11px] text-slate-400 font-medium h-7 flex items-center justify-center leading-tight mb-2">${weatherInfo.text}</div>
+                    <div class="mt-auto flex items-center justify-center gap-2 w-full border-t border-slate-800 pt-2 font-mono">
+                        <span class="text-sm font-bold text-white">${maxTemp}°</span>
+                        <span class="text-xs font-medium text-slate-500">${minTemp}°</span>
+                    </div>
+                `;
+                forecastContainer.appendChild(card);
+            }
+        }
+
+        // Drag-to-scroll interaction for the horizontal hourly list
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        hourlyContainer.addEventListener('mousedown', (e) => {
+            isDown = true;
+            hourlyContainer.classList.add('active');
+            startX = e.pageX - hourlyContainer.offsetLeft;
+            scrollLeft = hourlyContainer.scrollLeft;
+        });
+        
+        hourlyContainer.addEventListener('mouseleave', () => { isDown = false; });
+        hourlyContainer.addEventListener('mouseup', () => { isDown = false; });
+        hourlyContainer.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - hourlyContainer.offsetLeft;
+            const walk = (x - startX) * 2;
+            hourlyContainer.scrollLeft = scrollLeft - walk;
+        });
+
+        // Initialize On Window Load
+        window.addEventListener('load', () => {
+            fetchWeatherData();
+            map.invalidateSize();
+            map.fitBounds(territoryPolygon.getBounds(), { padding: [25, 25] });
+        });
+
+        // Window resize event handler
+        window.addEventListener('resize', () => {
+            map.invalidateSize();
+        });
+    </script>
+</body>
+</html>
